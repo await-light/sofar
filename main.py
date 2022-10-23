@@ -34,6 +34,7 @@ class Player(pygame.sprite.Sprite):
         )
         self.posx,self.posy = 0,0
         self.speedx,self.speedy = 2,2
+        self.direction = "RIGHT"
         
     def move(self,direction,group_blocks):
         # move the role
@@ -45,12 +46,18 @@ class Player(pygame.sprite.Sprite):
             self.posy+=self.speedy
         elif direction == "LEFT":
             self.posx-=self.speedx
+            self.direction = "LEFT"
         elif direction == "RIGHT":
             self.posx+=self.speedx
+            self.direction = "RIGHT"
 
+        # When player knocks the wall
         group_blocks.update(self)
-        if pygame.sprite.spritecollide(self,group_blocks,False):
+        touchwall = pygame.sprite.spritecollide(self,group_blocks,False)
+        if touchwall:
             self.posx,self.posy = x,y
+            for sprite in touchwall:
+                sprite.touched()
 
 class Block(pygame.sprite.Sprite):
     def __init__(self,x,y):
@@ -66,6 +73,61 @@ class Block(pygame.sprite.Sprite):
             (WIDTH-self.width)/2-(player.posx-self.posx),
             (HEIGHT-self.height)/2-(player.posy-self.posy)
         )
+
+    def touched(self):
+        self.image.fill(BLUE)
+
+class Gun(pygame.sprite.Sprite):
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+        self.width,self.height = 20,5
+        self.image = pygame.Surface((self.width,self.height))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.direction = "RIGHT"
+
+    def update(self,player):
+        self.direction = player.direction
+        if self.direction == "LEFT":
+            dire = -1
+        elif self.direction == "RIGHT":
+            dire = 1
+        self.rect.topleft = (
+            (WIDTH-self.width)/2+dire*5,
+            (HEIGHT-self.height)/2
+        )
+
+    def shoot(self,groups_bullet,player):
+        groups_bullet.add(Bullet(self.direction,5,1000,player.posx,player.posy))
+
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self,direction,speed,far,x,y):
+        pygame.sprite.Sprite.__init__(self)
+        self.width,self.height = 5,3
+        self.image = pygame.Surface((self.width,self.height))
+        self.image.fill(BLACK)
+        self.rect = self.image.get_rect()
+        self.posx,self.posy = x,y
+        self.direction = direction
+        self.speed = speed
+        self.far = [far,0]
+
+    def update(self,player):
+        if self.direction == "LEFT":
+            self.posx -= self.speed
+        elif self.direction == "RIGHT":
+            self.posx += self.speed
+        self.far[1] += self.speed
+        self.rect.topleft = (
+            (WIDTH-self.width)/2-(player.posx-self.posx),
+            (HEIGHT-self.height)/2-(player.posy-self.posy)
+        )
+        if self.far[1] >= self.far[0]:
+            self.kill()
+
+    def knock(self):
+        # when knocking something
+        self.kill()
 
 WHITE = (255,255,255)
 BLACK = (0,0,0)
@@ -83,11 +145,15 @@ fps = pygame.time.Clock()
 ######### Groups #########
 group_players = pygame.sprite.Group()
 group_blocks = pygame.sprite.Group()
+group_guns = pygame.sprite.Group()
+group_bullets = pygame.sprite.Group()
 
 ##########################
 
 player = Player()
 group_players.add(player)
+gun = Gun()
+group_guns.add(gun)
 group_blocks.add(Block(3,3))
 group_blocks.add(Block(1,5))
 group_blocks.add(Block(2,2))
@@ -121,11 +187,25 @@ while True:
         player.move("LEFT",group_blocks)
     if key[pygame.K_d]:
         player.move("RIGHT",group_blocks)
+    if key[pygame.K_j]:
+        gun.shoot(group_bullets,player)
+
+    for bullet,blocks in pygame.sprite.groupcollide(group_bullets,group_blocks,False,False).items():
+        bullet.knock()
+        for block in blocks:
+            block.touched()
     
     group_blocks.update(player)
     group_blocks.draw(screen)
-    group_players.draw(screen)
 
+    group_players.draw(screen)
+    
+    group_bullets.update(player)
+    group_bullets.draw(screen)
+
+    group_guns.update(player)
+    group_guns.draw(screen)
+    
     screen.blit(
         formtext(f"player-position: {player.posx},{player.posy}"),
         (0,0)
@@ -146,6 +226,11 @@ while True:
     screen.blit(
         formtext(f"touch-wall: {iftouchwall}"),
         (0,36)
+    )
+
+    screen.blit(
+        formtext(f"player-direction: {player.direction}"),
+        (0,48)
     )
 
     pygame.display.update()
