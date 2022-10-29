@@ -1,4 +1,5 @@
 import sys
+import time
 import math
 import pygame
 from pygame.locals import *
@@ -11,14 +12,6 @@ def formtext(text,size=15,color=(0,0,0),font=None):
         color
     )
     return text
-
-def target_angle(x1,x2,y1,y2):
-    angle_radians = math.atan2(y2-y1,x2-x1)
-    angle_degrees = math.degrees(angle_radians)
-    return angle_degrees
-
-def wrap_angle(angle):
-    return abs(angle % 360)
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
@@ -51,13 +44,12 @@ class Player(pygame.sprite.Sprite):
             self.posx+=self.speedx
             self.direction = "RIGHT"
 
-        # When player knocks the wall
         group_blocks.update(self)
         touchwall = pygame.sprite.spritecollide(self,group_blocks,False)
         if touchwall:
             self.posx,self.posy = x,y
             for sprite in touchwall:
-                sprite.touched()
+                sprite.touched(player)
 
 class Block(pygame.sprite.Sprite):
     def __init__(self,x,y):
@@ -74,17 +66,20 @@ class Block(pygame.sprite.Sprite):
             (HEIGHT-self.height)/2-(player.posy-self.posy)
         )
 
-    def touched(self):
+    def touched(self,object_):
+        print(f"{self} is touched by {object_}")
         self.image.fill(BLUE)
 
 class Gun(pygame.sprite.Sprite):
-    def __init__(self):
+    def __init__(self,timegap):
         pygame.sprite.Sprite.__init__(self)
         self.width,self.height = 20,5
         self.image = pygame.Surface((self.width,self.height))
         self.image.fill(RED)
         self.rect = self.image.get_rect()
         self.direction = "RIGHT"
+        self.timegap = timegap # sec
+        self.lastshoot = 0
 
     def update(self,player):
         self.direction = player.direction
@@ -98,7 +93,10 @@ class Gun(pygame.sprite.Sprite):
         )
 
     def shoot(self,groups_bullet,player):
-        groups_bullet.add(Bullet(self.direction,5,1000,player.posx,player.posy))
+        nowtime = time.time()
+        if nowtime - self.lastshoot >= self.timegap:
+            groups_bullet.add(Bullet(self.direction,5,1000,player.posx,player.posy))
+            self.lastshoot = nowtime
 
 class Bullet(pygame.sprite.Sprite):
     def __init__(self,direction,speed,far,x,y):
@@ -122,10 +120,13 @@ class Bullet(pygame.sprite.Sprite):
             (WIDTH-self.width)/2-(player.posx-self.posx),
             (HEIGHT-self.height)/2-(player.posy-self.posy)
         )
+
+        # If the bullet reaches the most length
         if self.far[1] >= self.far[0]:
             self.kill()
 
-    def knock(self):
+    def knock(self,object_):
+        print(f"{self} knocks {object_}")
         # when knocking something
         self.kill()
 
@@ -152,7 +153,7 @@ group_bullets = pygame.sprite.Group()
 
 player = Player()
 group_players.add(player)
-gun = Gun()
+gun = Gun(timegap=1)
 group_guns.add(gun)
 group_blocks.add(Block(3,3))
 group_blocks.add(Block(1,5))
@@ -191,9 +192,9 @@ while True:
         gun.shoot(group_bullets,player)
 
     for bullet,blocks in pygame.sprite.groupcollide(group_bullets,group_blocks,False,False).items():
-        bullet.knock()
         for block in blocks:
-            block.touched()
+            bullet.knock(block)
+            block.touched(bullet)
     
     group_blocks.update(player)
     group_blocks.draw(screen)
