@@ -17,8 +17,7 @@ class Player(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
         width,height = 16,28
-        self.image = pygame.Surface((width,height))
-        self.image.fill(GREEN)
+        self.image = pygame.image.load("player.png").convert_alpha()
         self.rect = Rect(
             (WIDTH-width)/2,
             (HEIGHT-height)/2,
@@ -74,19 +73,26 @@ class Gun(pygame.sprite.Sprite):
     def __init__(self,timegap):
         pygame.sprite.Sprite.__init__(self)
         self.width,self.height = 20,5
-        self.image = pygame.Surface((self.width,self.height))
-        self.image.fill(RED)
+        self.image = self.image_direction("RIGHT")
         self.rect = self.image.get_rect()
         self.direction = "RIGHT"
         self.timegap = timegap # sec
         self.lastshoot = 0
 
+    def image_direction(self,direction):
+        if direction == "RIGHT":
+            return pygame.image.load("gun-r.png").convert_alpha()
+        elif direction == "LEFT":
+            return pygame.image.load("gun-l.png").convert_alpha()
+
     def update(self,player):
         self.direction = player.direction
         if self.direction == "LEFT":
             dire = -1
+            self.image = self.image_direction("LEFT")
         elif self.direction == "RIGHT":
             dire = 1
+            self.image = self.image_direction("RIGHT")
         self.rect.topleft = (
             (WIDTH-self.width)/2+dire*5,
             (HEIGHT-self.height)/2
@@ -95,8 +101,8 @@ class Gun(pygame.sprite.Sprite):
     def shoot(self,groups_bullet,player):
         nowtime = time.time()
         if nowtime - self.lastshoot >= self.timegap:
-            groups_bullet.add(Bullet(self.direction,5,1000,player.posx,player.posy))
-            self.lastshoot = nowtime
+            groups_bullet.add(Bullet(self.direction,10,1000,player.posx,player.posy))
+            self.lastshoot = time.time()
 
 class Bullet(pygame.sprite.Sprite):
     def __init__(self,direction,speed,far,x,y):
@@ -153,7 +159,7 @@ group_bullets = pygame.sprite.Group()
 
 player = Player()
 group_players.add(player)
-gun = Gun(timegap=1)
+gun = Gun(timegap=0.05)
 group_guns.add(gun)
 group_blocks.add(Block(3,3))
 group_blocks.add(Block(1,5))
@@ -165,10 +171,12 @@ group_blocks.add(Block(3,5))
 group_blocks.add(Block(3,4))
 
 while True:
+    # Clock
     fps.tick(60)
 
     screen.fill(WHITE) # clear the screen
     
+    # Events
     for event in pygame.event.get():
         if event.type in (QUIT,):
             pygame.quit()
@@ -179,6 +187,7 @@ while True:
             elif event.button == 5:
                 pass
 
+    # Keys
     key = pygame.key.get_pressed()
     if key[pygame.K_w]:
         player.move("UP",group_blocks)
